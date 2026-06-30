@@ -1,5 +1,4 @@
 import aiosqlite
-from datetime import datetime
 
 async def init_db():
     async with aiosqlite.connect("bot_data.db") as db:
@@ -9,20 +8,27 @@ async def init_db():
                           (referrer_id INTEGER, user_id INTEGER)''')
         await db.commit()
 
-async def register_user(user_id, referrer_id):
+async def register_user_only(user_id, referrer_id):
+    from datetime import datetime
     async with aiosqlite.connect("bot_data.db") as db:
         date = datetime.now().strftime("%d.%m.%Y")
         await db.execute("INSERT OR IGNORE INTO users (id, referrer_id, reg_date) VALUES (?, ?, ?)", 
                          (user_id, referrer_id, date))
-        
-        bonus_added = False
-        if referrer_id and referrer_id != user_id:
-            cursor = await db.execute("SELECT * FROM payouts WHERE user_id = ?", (user_id,))
-            if not await cursor.fetchone():
-                await db.execute("INSERT INTO payouts (referrer_id, user_id) VALUES (?, ?)", (referrer_id, user_id))
-                bonus_added = True
         await db.commit()
-        return bonus_added
+
+async def pay_reward(user_id):
+    async with aiosqlite.connect("bot_data.db") as db:
+        cursor = await db.execute("SELECT referrer_id FROM users WHERE id = ? AND referrer_id IS NOT NULL", (user_id,))
+        row = await cursor.fetchone()
+        
+        if row:
+            referrer_id = row[0]
+            cursor_pay = await db.execute("SELECT * FROM payouts WHERE user_id = ?", (user_id,))
+            if not await cursor_pay.fetchone():
+                await db.execute("INSERT INTO payouts (referrer_id, user_id) VALUES (?, ?)", (referrer_id, user_id))
+                await db.commit()
+                return referrer_id
+        return None
 
 async def get_user_stats(user_id):
     async with aiosqlite.connect("bot_data.db") as db:
