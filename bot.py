@@ -1,11 +1,25 @@
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import CommandStart, CommandObject
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiohttp import web
 import database
 import asyncio
 
 bot = Bot(token="8659732625:AAGXvNoEdrw4Wb_hwEwvNRXWTxI1O8pvyck")
 dp = Dispatcher()
+
+# --- ВЕБ-ЗАГЛУШКА ДЛЯ RENDER ---
+async def handle(request):
+    return web.Response(text="Bot is running!")
+
+async def start_web_server():
+    app = web.Application()
+    app.add_routes([web.get('/', handle)])
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', 10000)
+    await site.start()
+# -------------------------------
 
 def get_main_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
@@ -19,10 +33,8 @@ async def cmd_start(message: types.Message, command: CommandObject):
     args = command.args
     referrer_id = int(args) if args and args.isdigit() else None
     
-    # Регистрация связи
     await database.register_user_only(message.from_user.id, referrer_id)
     
-    # Приветственный блок
     await message.answer(
         "✨ **Добро пожаловать в систему!** ✨\n\n"
         "Ты успешно активировал бота и прошел все проверки безопасности. "
@@ -31,7 +43,6 @@ async def cmd_start(message: types.Message, command: CommandObject):
         reply_markup=get_main_kb()
     )
     
-    # Начисление награды тому, кто пригласил
     ref_id = await database.pay_reward(message.from_user.id)
     if ref_id:
         try:
@@ -58,7 +69,7 @@ async def faq_handler(call: types.CallbackQuery):
         "📜 **Часто задаваемые вопросы:**\n\n"
         "1️⃣ **Как заработать?** — Приглашай друзей по своей ссылке.\n"
         "2️⃣ **Когда приходят звезды?** — Сразу после того, как приглашенный человек нажмет /start в этом боте.\n"
-        "3️⃣ **За что дают звезды?** — За каждого активного пользователя, который прошел проверку подписки в нашем канале-спонсоре.",
+        "3️⃣ **За что дают звезды?** — За каждого активного пользователя, который прошел проверку подписки.",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="profile")]])
     )
 
@@ -74,7 +85,9 @@ async def ref_link_handler(call: types.CallbackQuery):
 
 async def main():
     await database.init_db()
+    await start_web_server()
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
+
