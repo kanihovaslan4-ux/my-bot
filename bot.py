@@ -74,20 +74,25 @@ async def main():
     await database.init_db()
     await start_web_server()
     await dp.start_polling(bot)
+from aiogram.filters import Command
 
-if __name__ == "__main__":
-    asyncio.run(main())
-@dp.message(F.text.startswith("/setbalance"))
+@dp.message(Command("setbalance"))
 async def admin_set_balance(message: types.Message):
-    # Вставь сюда свой личный ID (его можно узнать, написав боту @userinfobot)
-    ADMIN_ID = 7880039240 
-    
-    if message.from_user.id != ADMIN_ID:
-        return # Игнорируем всех, кроме тебя
-    
+    # Вставь свой ID вместо 000000000
+    if message.from_user.id != 7880039240:
+        return
+        
     try:
-        amount = int(message.text.split()[1])
+        # Получаем число из сообщения (например, "/setbalance 50")
+        args = message.text.split()
+        if len(args) < 2:
+            await message.answer("Используй: /setbalance [число]")
+            return
+            
+        amount = int(args[1])
         await database.set_user_balance(message.from_user.id, amount)
         await message.answer(f"✅ Баланс успешно изменен на {amount} звезд!")
     except Exception as e:
         await message.answer(f"❌ Ошибка: {e}")
+
+
