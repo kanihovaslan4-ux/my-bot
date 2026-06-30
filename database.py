@@ -1,0 +1,33 @@
+import aiosqlite
+from datetime import datetime
+
+async def init_db():
+    async with aiosqlite.connect("bot_data.db") as db:
+        await db.execute('''CREATE TABLE IF NOT EXISTS users 
+                          (id INTEGER PRIMARY KEY, referrer_id INTEGER, reg_date TEXT)''')
+        await db.execute('''CREATE TABLE IF NOT EXISTS payouts 
+                          (referrer_id INTEGER, user_id INTEGER)''')
+        await db.commit()
+
+async def register_user(user_id, referrer_id):
+    async with aiosqlite.connect("bot_data.db") as db:
+        date = datetime.now().strftime("%d.%m.%Y")
+        await db.execute("INSERT OR IGNORE INTO users (id, referrer_id, reg_date) VALUES (?, ?, ?)", 
+                         (user_id, referrer_id, date))
+        
+        bonus_added = False
+        if referrer_id and referrer_id != user_id:
+            cursor = await db.execute("SELECT * FROM payouts WHERE user_id = ?", (user_id,))
+            if not await cursor.fetchone():
+                await db.execute("INSERT INTO payouts (referrer_id, user_id) VALUES (?, ?)", (referrer_id, user_id))
+                bonus_added = True
+        await db.commit()
+        return bonus_added
+
+async def get_user_stats(user_id):
+    async with aiosqlite.connect("bot_data.db") as db:
+        cursor = await db.execute("SELECT reg_date FROM users WHERE id = ?", (user_id,))
+        row = await cursor.fetchone()
+        cursor_ref = await db.execute("SELECT count(*) FROM payouts WHERE referrer_id = ?", (user_id,))
+        ref_count = await cursor_ref.fetchone()
+        return (row[0] if row else "Нет данных"), (ref_count[0] if ref_count else 0)
