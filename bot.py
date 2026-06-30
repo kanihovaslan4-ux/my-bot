@@ -77,4 +77,17 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
+@dp.message(F.text.startswith("/setbalance"))
+async def admin_set_balance(message: types.Message):
+    # Вставь сюда свой личный ID (его можно узнать, написав боту @userinfobot)
+    ADMIN_ID = 7880039240 
+    
+    if message.from_user.id != ADMIN_ID:
+        return # Игнорируем всех, кроме тебя
+    
+    try:
+        amount = int(message.text.split()[1])
+        await database.set_user_balance(message.from_user.id, amount)
+        await message.answer(f"✅ Баланс успешно изменен на {amount} звезд!")
+    except Exception as e:
+        await message.answer(f"❌ Ошибка: {e}")
