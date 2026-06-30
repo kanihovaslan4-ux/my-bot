@@ -1,96 +1,80 @@
-import logging
-import sqlite3
 from aiogram import Bot, Dispatcher, types, F
-from aiogram.filters import Command
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.filters import CommandStart, CommandObject
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+import database
+import asyncio
 
-# --- НАСТРОЙКИ ---
-API_TOKEN = '8659732625:AAGXvNoEdrw4Wb_hwEwvNRXWTxI1O8pvyck'
-ADMIN_ID = 7880039240  # Твой ID для получения заявок
-CHANNELS = ["@channel1", "@channel2"] # Список каналов
-REWARD = 4 
-
-bot = Bot(token=API_TOKEN)
+bot = Bot(token="8659732625:AAGXvNoEdrw4Wb_hwEwvNRXWTxI1O8pvyck")
 dp = Dispatcher()
 
-# --- БД ---
-conn = sqlite3.connect('users.db', check_same_thread=False)
-cursor = conn.cursor()
-cursor.execute('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, referrer INTEGER, balance INTEGER DEFAULT 0)')
-conn.commit()
-
-async def is_subscribed(user_id):
-    for channel in CHANNELS:
-        try:
-            member = await bot.get_chat_member(chat_id=channel, user_id=user_id)
-            if member.status in ['left', 'kicked']: return False
-        except: return False
-    return True
-
-# --- КЛАВИАТУРА ---
-def main_kb():
+def get_main_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔗 Моя ссылка", callback_data="get_link")],
-        [InlineKeyboardButton(text="💰 Баланс", callback_data="balance")],
-        [InlineKeyboardButton(text="💸 Вывод средств", callback_data="withdraw_menu")]
+        [InlineKeyboardButton(text="👤 Мой профиль", callback_data="profile")],
+        [InlineKeyboardButton(text="🔗 Пригласить друзей", callback_data="ref_link")],
+        [InlineKeyboardButton(text="📜 Правила и FAQ", callback_data="faq")]
     ])
 
-@dp.message(Command("start"))
-async def start(message: types.Message):
-    args = message.text.split()
-    user_id = message.from_user.id
+@dp.message(CommandStart())
+async def cmd_start(message: types.Message, command: CommandObject):
+    args = command.args
+    referrer_id = int(args) if args and args.isdigit() else None
     
-    # Регистрация
-    cursor.execute('SELECT id FROM users WHERE id = ?', (user_id,))
-    if not cursor.fetchone():
-        referrer = int(args[1]) if len(args) > 1 and args[1].isdigit() else None
-        cursor.execute('INSERT INTO users (id, referrer) VALUES (?, ?)', (user_id, referrer))
-        conn.commit()
-        
-        # Начисление
-        if referrer and referrer != user_id:
-            cursor.execute('UPDATE users SET balance = balance + ? WHERE id = ?', (REWARD, referrer))
-            conn.commit()
-            try: await bot.send_message(referrer, f"🎉 У вас новый реферал! +{REWARD} звезд.")
-            except: pass
-
-    await message.answer("👋 Добро пожаловать!\nПриглашай друзей и зарабатывай звезды.", reply_markup=main_kb())
-
-@dp.callback_query(F.data == "get_link")
-async def get_link(call: types.CallbackQuery):
-    await call.message.answer(f"Твоя ссылка: https://t.me/{(await bot.get_me()).username}?start={call.from_user.id}")
-
-@dp.callback_query(F.data == "balance")
-async def balance(call: types.CallbackQuery):
-    cursor.execute('SELECT balance FROM users WHERE id = ?', (call.from_user.id,))
-    bal = cursor.fetchone()[0]
-    await call.message.answer(f"💰 Твой баланс: {bal} звезд.")
-
-@dp.callback_query(F.data == "withdraw_menu")
-async def withdraw_menu(call: types.CallbackQuery):
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="15", callback_data="w_15"), InlineKeyboardButton(text="25", callback_data="w_25")],
-        [InlineKeyboardButton(text="50", callback_data="w_50"), InlineKeyboardButton(text="100", callback_data="w_100")]
-    ])
-    await call.message.answer("Выберите сумму для вывода:", reply_markup=kb)
-
-@dp.callback_query(F.data.startswith("w_"))
-async def withdraw_request(call: types.CallbackQuery):
-    amount = int(call.data.split("_")[1])
-    cursor.execute('SELECT balance FROM users WHERE id = ?', (call.from_user.id,))
-    bal = cursor.fetchone()[0]
+    # Регистрация связи
+    await database.register_user_only(message.from_user.id, referrer_id)
     
-    if bal >= amount:
-        cursor.execute('UPDATE users SET balance = balance - ? WHERE id = ?', (amount, call.from_user.id))
-        conn.commit()
-        await bot.send_message(ADMIN_ID, f"🔔 Новая заявка!\nUser: {call.from_user.id}\nСумма: {amount}")
-        await call.message.answer(f"✅ Заявка на {amount} звезд принята!")
-    else:
-        await call.message.answer("❌ Недостаточно средств.")
+    # Приветственный блок
+    await message.answer(
+        "✨ **Добро пожаловать в систему!** ✨\n\n"
+        "Ты успешно активировал бота и прошел все проверки безопасности. "
+        "Теперь ты полноценный участник нашей системы заработка. 🚀\n\n"
+        "💎 **Используй кнопки ниже, чтобы управлять профилем и следить за балансом.**",
+        reply_markup=get_main_kb()
+    )
+    
+    # Начисление награды тому, кто пригласил
+    ref_id = await database.pay_reward(message.from_user.id)
+    if ref_id:
+        try:
+            await bot.send_message(ref_id, "✅ **Ваш реферал активировал бота!**\n\n"
+                                           "Он успешно прошел все проверки подписки. "
+                                           "💰 **Вам начислено +5 звезд на баланс!**")
+        except: pass
+
+@dp.callback_query(F.data == "profile")
+async def profile_handler(call: types.CallbackQuery):
+    reg, count = await database.get_user_stats(call.from_user.id)
+    await call.message.edit_text(
+        f"📊 **Твой личный кабинет**\n\n"
+        f"📅 *Дата вступления:* `{reg}`\n"
+        f"👥 *Всего приглашено:* `{count}` чел.\n"
+        f"💎 *Твой текущий баланс:* `{count * 5}` **звезд**\n\n"
+        f"--- \n*Приглашай больше — зарабатывай больше!*",
+        reply_markup=get_main_kb()
+    )
+
+@dp.callback_query(F.data == "faq")
+async def faq_handler(call: types.CallbackQuery):
+    await call.message.edit_text(
+        "📜 **Часто задаваемые вопросы:**\n\n"
+        "1️⃣ **Как заработать?** — Приглашай друзей по своей ссылке.\n"
+        "2️⃣ **Когда приходят звезды?** — Сразу после того, как приглашенный человек нажмет /start в этом боте.\n"
+        "3️⃣ **За что дают звезды?** — За каждого активного пользователя, который прошел проверку подписки в нашем канале-спонсоре.",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="profile")]])
+    )
+
+@dp.callback_query(F.data == "ref_link")
+async def ref_link_handler(call: types.CallbackQuery):
+    bot_info = await bot.get_me()
+    await call.message.edit_text(
+        f"🔗 **Твоя персональная ссылка:**\n\n"
+        f"`https://t.me/{bot_info.username}?start={call.from_user.id}`\n\n"
+        f"Скопируй её и отправь другу. После прохождения подписок он придет сюда, а ты получишь награду! 💸",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="profile")]])
+    )
 
 async def main():
+    await database.init_db()
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    import asyncio
     asyncio.run(main())
