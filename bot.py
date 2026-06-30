@@ -7,7 +7,7 @@ import database, asyncio, os
 TOKEN = "8659732625:AAFbCRywNhaX22_djBjYZYMFk57QpTFAURM"
 CHANNEL_LINK = "https://t.me/gottec"
 TELEGRAPH_URL = "https://telegra.ph/PravilaFAQ-06-30"
-
+CHANNEL_ID = -1003903368955
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
@@ -59,10 +59,16 @@ async def withdraw_menu(call: types.CallbackQuery):
     await call.message.edit_text("💰 Выбери сумму для вывода:", reply_markup=kb)
 
 @dp.callback_query(F.data.startswith("w_"))
+@dp.callback_query(F.data.startswith("w_"))
 async def request_withdraw(call: types.CallbackQuery):
     amount = int(call.data.split("_")[1])
     await database.create_withdrawal(call.from_user.id, amount)
-    await call.message.edit_text("✅ Заявка оформлена! Следи за каналом выплат.", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🎟 Канал", url=CHANNEL_LINK)], [InlineKeyboardButton(text="🏠 Назад", callback_data="profile")]]))
+    
+    # Добавляем отправку уведомления в канал:
+    await bot.send_message(CHANNEL_ID, f"🔔 Новая заявка!\n👤 Пользователь: @{call.from_user.username or call.from_user.id}\n💰 Сумма: {amount} звезд")
+    
+    await call.message.edit_text("✅ Заявка оформлена! Администратор скоро её проверит.", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 Назад", callback_data="profile")]]))
+
 
 async def main():
     await database.init_db()
