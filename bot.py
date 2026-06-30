@@ -4,7 +4,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from aiohttp import web
 import database, asyncio, os
 
-TOKEN = "8659732625:AAHZ3VLuGhzPuFSiNRcqMVLec4BDJ0qDjeo"
+TOKEN = "8659732625:AAFbCRywNhaX22_djBjYZYMFk57QpTFAURM"
 CHANNEL_LINK = "https://t.me/gottec"
 TELEGRAPH_URL = "https://telegra.ph/PravilaFAQ-06-30"
 
