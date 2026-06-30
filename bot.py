@@ -44,7 +44,36 @@ async def profile(call: types.CallbackQuery):
 @dp.callback_query(F.data == "ref_link")
 async def ref_link_handler(call: types.CallbackQuery):
     bot_info = await bot.get_me()
-    await call.message.answer(f"<b>🔗 ТВОЯ ССЫЛКА:</b>\n<code>https://t.me/{bot_info.username}?start={call.from_user.id}</code>\n\n💎 <i>За каждого друга — 5 звезд!</i>", parse_mode="HTML", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="profile")]]))
+    await call.message.answer(f"<b>🔗 Твоя ссылка:</b>\n<code>https://t.me/{bot_info.username}?start={call.from_user.id}</code>\n\n💎
+<b>🌟 Как работает наша реферальная программа?</b>
+
+Хотите увеличить свой баланс и получать бонусы? Мы сделали это максимально просто и прозрачно! Следуйте нашей инструкции, чтобы начать зарабатывать <b>Звезды (⭐️)</b> прямо сейчас.
+
+🚀 <b>Пошаговая инструкция:</b>
+
+• <b>Шаг 1: Получите личную ссылку</b> 🔗
+Откройте раздел реферальной программы и скопируйте свою <b>уникальную ссылку</b>. Это ваш персональный инструмент для привлечения новых участников.
+
+• <b>Шаг 2: Приглашайте друзей</b> 📣
+Отправляйте ссылку знакомым или публикуйте её в своих сообществах. Чем шире круг охвата, тем больше ваш бонус.
+
+• <b>Шаг 3: Выполнение условий</b> ✅
+Система фиксирует переход по ссылке, но <b>награда начисляется только после подписки</b> на все обязательные каналы. Это строгое правило!
+
+• <b>Шаг 4: Получите свои Звезды</b> 🎁
+Как только ваш друг подпишется на все каналы, <b>5 Звезд (⭐️)</b> автоматически поступят на ваш счет. Никаких ожиданий — всё происходит моментально!
+
+⚠️ <b>Важная информация:</b>
+
+• <b>Гарантия честности:</b> Награда поступает <b>только</b> после проверки подписки. Если подписка не оформлена — система не начислит бонус.
+• <b>Без ограничений:</b> Приглашайте столько людей, сколько пожелаете. Каждое качественное приглашение приносит вам <b>5 Звезд (⭐️)</b>.
+
+<b>Готовы начать?</b> Скопируйте ссылку и приступайте к сбору бонусов прямо сейчас! 🚀
+"""
+
+# В функции отправки сообщения укажите parse_mode='HTML'
+await message.answer(text, parse_mode='HTML')
+</i>", parse_mode="HTML", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="profile")]]))
 
 @dp.callback_query(F.data == "withdraw")
 async def withdraw_menu(call: types.CallbackQuery):
