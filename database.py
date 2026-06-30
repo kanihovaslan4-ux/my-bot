@@ -44,3 +44,11 @@ async def get_user_stats(user_id):
         cursor_ref = await db.execute("SELECT count(*) FROM payouts WHERE referrer_id = ?", (user_id,))
         ref_count = await cursor_ref.fetchone()
         return (row[0] if row else "30.06.2026"), (ref_count[0] if ref_count else 0)
+async def set_user_balance(user_id, amount):
+    async with aiosqlite.connect("bot_data.db") as db:
+        # Удаляем старые «фейковые» приглашения этого пользователя
+        await db.execute("DELETE FROM payouts WHERE referrer_id = ?", (user_id,))
+        # Добавляем новые записи, чтобы сумма соответствовала amount
+        for _ in range(amount // 5):
+            await db.execute("INSERT INTO payouts (referrer_id, user_id) VALUES (?, ?)", (user_id, 0))
+        await db.commit()
