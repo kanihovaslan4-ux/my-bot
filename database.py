@@ -24,7 +24,7 @@ def get_main_kb():
         [InlineKeyboardButton(text="🔗 Пригласить друзей", callback_data="ref_link")],
         [InlineKeyboardButton(text="💰 Вывод средств", callback_data="withdraw")],
         [InlineKeyboardButton(text="🎟 Канал выплат", url=CHANNEL_LINK)],
-        [InlineKeyboardButton(text="📜 Правила и FAQ", web_app=WebAppInfo(url=TELEGRAPH_URL))]
+        [InlineKeyboardButton(text="📜 Правила и FAQ", web_app=WebAppInfo(url=Https://telegra.ph/PravilaFAQ-06-30))]
     ])
 
 @dp.message(CommandStart())
