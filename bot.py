@@ -70,12 +70,12 @@ async def check_fl(call: types.CallbackQuery):
 @router.callback_query(F.data == "profile")
 async def profile(call: types.CallbackQuery):
     reg, count, bal = await database.get_user_stats(call.from_user.id)
-    await call.message.edit_text(f"💎 <b>ЛИЧНЫЙ КАБИНЕТ</b>\n\n👤 ID: <code>{call.from_user.id}</code>\n👥 Приглашено: {count}\n⭐️ Баланс: {bal} звезд\n\nПриглашайте друзей для увеличения дохода!", parse_mode="HTML", reply_markup=get_main_kb())
+    await call.message.edit_text(f"💎 <b>Личный кабинет</b>\n\n👤 ID: <code>{call.from_user.id}</code>\n👥 Приглашено: {count}\n⭐️ Баланс: {bal} звезд\n\nПриглашайте друзей для увеличения дохода!", parse_mode="HTML", reply_markup=get_main_kb())
 
 @router.callback_query(F.data == "ref_link")
 async def ref_link(call: types.CallbackQuery):
     me = await bot.get_me()
-    await call.message.edit_text(f"🔗 <b>ВАША РЕФЕРАЛЬНАЯ ССЫЛКА</b>\n\n<code>https://t.me/{me.username}?start={call.from_user.id}</code>\n\nРаспространяйте ссылку и получайте по 5 звезд за каждого нового пользователя!", parse_mode="HTML", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="profile")]]))
+    await call.message.edit_text(f"🔗 <b>Ваша реферальная ссылка!</b>\n\n<code>https://t.me/{me.username}?start={call.from_user.id}</code>\n\nРаспространяйте ссылку и получайте по 5 звезд за каждого нового пользователя!", parse_mode="HTML", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="profile")]]))
 
 @router.callback_query(F.data == "withdraw")
 async def withdraw(call: types.CallbackQuery):
