@@ -52,3 +52,19 @@ async def set_user_balance(user_id, amount):
         for _ in range(amount // 5):
             await db.execute("INSERT INTO payouts (referrer_id, user_id) VALUES (?, ?)", (user_id, 0))
         await db.commit()
+async def init_db():
+    # ... (твои старые таблицы)
+    async with aiosqlite.connect("bot_data.db") as db:
+        await db.execute('''CREATE TABLE IF NOT EXISTS promocodes 
+                          (code TEXT PRIMARY KEY, amount INTEGER, uses INTEGER)''')
+        await db.commit()
+
+async def create_promo(code, amount, uses):
+    async with aiosqlite.connect("bot_data.db") as db:
+        await db.execute("INSERT INTO promocodes VALUES (?, ?, ?)", (code, amount, uses))
+        await db.commit()
+
+async def get_all_users():
+    async with aiosqlite.connect("bot_data.db") as db:
+        cursor = await db.execute("SELECT id FROM users")
+        return [row[0] for row in await cursor.fetchall()]
