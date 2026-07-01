@@ -1,5 +1,5 @@
 from aiogram import Bot, Dispatcher, types, F
-from aiogram.filters import CommandStart, CommandObject
+from aiogram.filters import CommandStart, CommandObject, Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from aiohttp import web
 import database, asyncio, os
@@ -7,10 +7,12 @@ import database, asyncio, os
 TOKEN = "8659732625:AAFbCRywNhaX22_djBjYZYMFk57QpTFAURM"
 CHANNEL_LINK = "https://t.me/gottec"
 TELEGRAPH_URL = "https://telegra.ph/PravilaFAQ-06-30"
-CHANNEL_ID = -1003903368955
+ADMIN_ID = 7880039240 
+
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
+# --- ВЕБ-СЕРВЕР ДЛЯ RENDER ---
 async def start_web_server():
     app = web.Application()
     app.router.add_get('/', lambda r: web.Response(text="Bot is running!"))
@@ -18,6 +20,7 @@ async def start_web_server():
     await runner.setup()
     await web.TCPSite(runner, '0.0.0.0', int(os.environ.get("PORT", 10000))).start()
 
+# --- КЛАВИАТУРА ---
 def get_main_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="👤 Мой профиль", callback_data="profile")],
@@ -27,72 +30,60 @@ def get_main_kb():
         [InlineKeyboardButton(text="📜 Правила и FAQ", web_app=WebAppInfo(url=TELEGRAPH_URL))]
     ])
 
+# --- КОМАНДЫ И ОБРАБОТЧИКИ ---
 @dp.message(CommandStart())
 async def cmd_start(message: types.Message, command: CommandObject):
     await database.register_user_only(message.from_user.id, int(command.args) if command.args and command.args.isdigit() else None)
     await message.answer("👋 Привет! Добро пожаловать в систему.", reply_markup=get_main_kb())
-    ref_id = await database.pay_reward(message.from_user.id)
-    if ref_id:
-        try: await bot.send_message(ref_id, "✅ Друг активировал бота! +5 звезд.")
-        except: pass
 
 @dp.callback_query(F.data == "profile")
 async def profile(call: types.CallbackQuery):
     reg, count = await database.get_user_stats(call.from_user.id)
-    text = f"📊 ЛИЧНЫЙ КАБИНЕТ\n\nВ системе с: {reg}\nПриглашено: {count}\nБаланс: {count * 5} ⭐️"
-    await call.message.edit_text(text, reply_markup=get_main_kb())
+    text = (f"💎 <b>ЛИЧНЫЙ КАБИНЕТ</b> 💎\n\n"
+            f"👤 <b>ID:</b> <code>{call.from_user.id}</code>\n"
+            f"📅 <b>В системе с:</b> {reg}\n"
+            f"👥 <b>Приглашено:</b> {count}\n\n"
+            f"⭐️ <b>Твой баланс:</b> {count * 5} звезд")
+    await call.message.edit_text(text, parse_mode="HTML", reply_markup=get_main_kb())
 
 @dp.callback_query(F.data == "ref_link")
 async def ref_link_handler(call: types.CallbackQuery):
     bot_info = await bot.get_me()
     text = (f"<b>🔗 Твоя ссылка:</b>\n<code>https://t.me/{bot_info.username}?start={call.from_user.id}</code>\n\n"
-            "💎 <b>Как работает наша реферальная программа?</b>\n\n"
-            "1. Скопируй ссылку.\n2. Приглашай друзей.\n3. Получай 5 звезд за каждого подписавшегося!\n\n"
-            "⚠️ <b>Важно:</b> Награда начисляется только после подписки на все каналы.")
-    await call.message.answer(text, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="profile")]]))
+            "💎 <b>Приглашай друзей и получай 5 звезд за каждого!</b>")
+    await call.message.edit_text(text, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="profile")]]))
 
-@dp.callback_query(F.data == "withdraw")
-async def withdraw_menu(call: types.CallbackQuery):
-    _, count = await database.get_user_stats(call.from_user.id)
-    if count * 5 < 15: return await call.answer("⚠️ Минимум 15 звезд для вывода!", show_alert=True)
-    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="15 ⭐️", callback_data="w_15")], [InlineKeyboardButton(text="⬅️ Назад", callback_data="profile")]])
-    await call.message.edit_text("💰 Выбери сумму для вывода:", reply_markup=kb)
+# --- АДМИН-ПАНЕЛЬ ---
+@dp.message(Command("admin"))
+async def admin_panel(message: types.Message):
+    if message.from_user.id != ADMIN_ID: return
+    await message.answer("🛠 <b>Админ-панель:</b>\n\n/promo [код] [сумма] [использования]\n/send [текст] - рассылка")
 
-@dp.callback_query(F.data.startswith("w_"))
-@dp.callback_query(F.data.startswith("w_"))
-async def request_withdraw(call: types.CallbackQuery):
-    amount = int(call.data.split("_")[1])
-    await database.create_withdrawal(call.from_user.id, amount)
-    
-    # Добавляем отправку уведомления в канал:
-    await bot.send_message(CHANNEL_ID, f"🔔 Новая заявка!\n👤 Пользователь: @{call.from_user.username or call.from_user.id}\n💰 Сумма: {amount} звезд")
-    
-    await call.message.edit_text("✅ Заявка оформлена! Администратор скоро её проверит.", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 Назад", callback_data="profile")]]))
+@dp.message(F.text.startswith("/promo"))
+async def add_promo(message: types.Message):
+    if message.from_user.id != ADMIN_ID: return
+    args = message.text.split()
+    if len(args) < 4: return await message.answer("Ошибка! Формат: /promo [код] [сумма] [использования]")
+    await database.create_promo(args[1], int(args[2]), int(args[3]))
+    await message.answer(f"✅ Промокод {args[1]} на {args[2]} звезд создан!")
 
+@dp.message(F.text.startswith("/send"))
+async def broadcast(message: types.Message):
+    if message.from_user.id != ADMIN_ID: return
+    text = message.text.replace("/send ", "")
+    users = await database.get_all_users()
+    for user_id in users:
+        try: await bot.send_message(user_id, text)
+        except: continue
+    await message.answer("✅ Рассылка завершена.")
 
+# --- ЗАПУСК ---
 async def main():
     await database.init_db()
     await start_web_server()
     await dp.start_polling(bot)
-from aiogram.filters import Command
 
-@dp.message(Command("setbalance"))
-async def admin_set_balance(message: types.Message):
-    # Вставь свой ID вместо 000000000
-    if message.from_user.id != 7880039240:
-        return
-        
-    try:
-        # Получаем число из сообщения (например, "/setbalance 50")
-        args = message.text.split()
-        if len(args) < 2:
-            await message.answer("Используй: /setbalance [число]")
-            return
-            
-        amount = int(args[1])
-        await database.set_user_balance(message.from_user.id, amount)
-        await message.answer(f"✅ Баланс успешно изменен на {amount} звезд!")
-    except Exception as e:
-        await message.answer(f"❌ Ошибка: {e}")
+if __name__ == "__main__":
+    asyncio.run(main())
 
 
