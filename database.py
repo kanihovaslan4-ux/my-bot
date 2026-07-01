@@ -1,70 +1,38 @@
-import aiosqlite
-from datetime import datetime
+import os
+import asyncpg
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+async def get_conn():
+    return await asyncpg.connect(DATABASE_URL)
 
 async def init_db():
-    async with aiosqlite.connect("bot_data.db") as db:
-        await db.execute('''CREATE TABLE IF NOT EXISTS users 
-                          (id INTEGER PRIMARY KEY, referrer_id INTEGER, reg_date TEXT)''')
-        await db.execute('''CREATE TABLE IF NOT EXISTS payouts 
-                          (referrer_id INTEGER, user_id INTEGER)''')
-        await db.execute('''CREATE TABLE IF NOT EXISTS withdrawal_requests 
-                          (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, amount INTEGER, status TEXT)''')
-        await db.commit()
+    conn = await get_conn()
+    await conn.execute('''CREATE TABLE IF NOT EXISTS users 
+                          (id BIGINT PRIMARY KEY, referrer_id BIGINT, reg_date TEXT)''')
+    await conn.execute('''CREATE TABLE IF NOT EXISTS promocodes 
+                          (code TEXT PRIMARY KEY, amount INTEGER, uses INTEGER)''')
+    await conn.close()
 
 async def register_user_only(user_id, referrer_id):
-    async with aiosqlite.connect("bot_data.db") as db:
-        date = datetime.now().strftime("%d.%m.%Y")
-        await db.execute("INSERT OR IGNORE INTO users (id, referrer_id, reg_date) VALUES (?, ?, ?)", (user_id, referrer_id, date))
-        await db.commit()
-
-async def pay_reward(user_id):
-    async with aiosqlite.connect("bot_data.db") as db:
-        cursor = await db.execute("SELECT referrer_id FROM users WHERE id = ? AND referrer_id IS NOT NULL", (user_id,))
-        row = await cursor.fetchone()
-        if row:
-            referrer_id = row[0]
-            cursor_pay = await db.execute("SELECT * FROM payouts WHERE user_id = ?", (user_id,))
-            if not await cursor_pay.fetchone():
-                await db.execute("INSERT INTO payouts (referrer_id, user_id) VALUES (?, ?)", (referrer_id, user_id))
-                await db.commit()
-                return referrer_id
-        return None
-
-async def create_withdrawal(user_id, amount):
-    async with aiosqlite.connect("bot_data.db") as db:
-        cursor = await db.execute("INSERT INTO withdrawal_requests (user_id, amount, status) VALUES (?, ?, 'В ожидании 🕐')", (user_id, amount))
-        request_id = cursor.lastrowid
-        await db.commit()
-        return request_id
+    conn = await get_conn()
+    await conn.execute("INSERT INTO users (id, referrer_id, reg_date) VALUES ($1, $2, '01.07.2026') ON CONFLICT (id) DO NOTHING", user_id, referrer_id)
+    await conn.close()
 
 async def get_user_stats(user_id):
-    async with aiosqlite.connect("bot_data.db") as db:
-        cursor = await db.execute("SELECT reg_date FROM users WHERE id = ?", (user_id,))
-        row = await cursor.fetchone()
-        cursor_ref = await db.execute("SELECT count(*) FROM payouts WHERE referrer_id = ?", (user_id,))
-        ref_count = await cursor_ref.fetchone()
-        return (row[0] if row else "30.06.2026"), (ref_count[0] if ref_count else 0)
-async def set_user_balance(user_id, amount):
-    async with aiosqlite.connect("bot_data.db") as db:
-        # Удаляем старые «фейковые» приглашения этого пользователя
-        await db.execute("DELETE FROM payouts WHERE referrer_id = ?", (user_id,))
-        # Добавляем новые записи, чтобы сумма соответствовала amount
-        for _ in range(amount // 5):
-            await db.execute("INSERT INTO payouts (referrer_id, user_id) VALUES (?, ?)", (user_id, 0))
-        await db.commit()
-async def init_db():
-    # ... (твои старые таблицы)
-    async with aiosqlite.connect("bot_data.db") as db:
-        await db.execute('''CREATE TABLE IF NOT EXISTS promocodes 
-                          (code TEXT PRIMARY KEY, amount INTEGER, uses INTEGER)''')
-        await db.commit()
+    conn = await get_conn()
+    row = await conn.fetchrow("SELECT reg_date FROM users WHERE id = $1", user_id)
+    count = await conn.fetchval("SELECT count(*) FROM users WHERE referrer_id = $1", user_id)
+    await conn.close()
+    return (row['reg_date'] if row else "01.07.2026"), (count if count else 0)
 
 async def create_promo(code, amount, uses):
-    async with aiosqlite.connect("bot_data.db") as db:
-        await db.execute("INSERT INTO promocodes VALUES (?, ?, ?)", (code, amount, uses))
-        await db.commit()
+    conn = await get_conn()
+    await conn.execute("INSERT INTO promocodes VALUES ($1, $2, $3)", code, amount, uses)
+    await conn.close()
 
 async def get_all_users():
-    async with aiosqlite.connect("bot_data.db") as db:
-        cursor = await db.execute("SELECT id FROM users")
-        return [row[0] for row in await cursor.fetchall()]
+    conn = await get_conn()
+    rows = await conn.fetch("SELECT id FROM users")
+    await conn.close()
+    return [row['id'] for row in rows]
